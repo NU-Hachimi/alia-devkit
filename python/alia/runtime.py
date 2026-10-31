@@ -26,3 +26,9 @@ def env(cart_id: str, quota_kb: int, lang: str = "") -> dict[str, str]:
         if v:
             out[k] = v
     return out
+
+
+def keyboard() -> dict:
+    """The PC keyboard layout ([keyboard]): button -> SDL3 key names, the two sticks as
+    {up, down, left, right} -> key name, and half_tilt."""
+    return rules()["keyboard"]

@@ -40,3 +40,11 @@ def test_inputd_creates_that_gamepad():
     m = re.search(r"VENDOR = (0x[0-9a-fA-F]+), PRODUCT = (0x[0-9a-fA-F]+), VERSION = (\d+)", hpp.read_text())
     g = runtime.rules()["gamepad"]
     assert (int(m[1], 16), int(m[2], 16), int(m[3])) == (g["vendor"], g["product"], g["version"])
+
+
+def test_keyboard_keys_are_unique():
+    kb = runtime.keyboard()
+    keys = [k for v in kb.values() if isinstance(v, list) for k in v]
+    keys += [k for v in kb.values() if isinstance(v, dict) for k in v.values()]
+    assert len(keys) == len(set(keys))
+    assert set(kb["left_stick"]) == set(kb["right_stick"]) == {"up", "down", "left", "right"}

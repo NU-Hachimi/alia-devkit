@@ -63,3 +63,32 @@ version = 1
 mapping = "060099ca091200000100000001000000,Alia Pad Gamepad,a:b0,b:b1,x:b3,y:b2,back:b8,start:b9,leftstick:b10,rightstick:b11,leftshoulder:b4,rightshoulder:b5,dpup:b12,dpdown:b13,dpleft:b14,dpright:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:b6,righttrigger:b7,"
 # players: the built-in gamepad is always player 1; external ones (Bluetooth, the dock)
 # follow in the order they connect (planned: alia-inputd owns them all)
+
+# The PC keyboard as an Alia Pad: one layout for every PC tool (the PC simulator
+# alia-runtime, the engine's direct run, the system developers' control panel). Positional,
+# after the usual PC emulator defaults (Ryujinx): the left hand has the left stick and
+# shoulders, the right hand the right stick and shoulders; A (east) is right of B (south).
+# Key names are SDL3's (SDL_GetKeyFromName); each tool translates them for its toolkit.
+# home and power are the system's: a cart never sees them.
+[keyboard]
+south  = ["Z"]
+east   = ["X"]
+north  = ["C"]
+west   = ["V"]
+l1     = ["E"]
+l2     = ["Q"]
+r1     = ["U"]
+r2     = ["O"]
+l3     = ["F"]
+r3     = ["N"]
+start  = ["Return", "Keypad Enter", "="]
+select = ["Backspace", "-"]
+up     = ["Up"]
+down   = ["Down"]
+left   = ["Left"]
+right  = ["Right"]
+home   = ["H"]          # hold: the quick menu
+power  = ["P"]          # short: screen off / on; long: power off
+left_stick  = { up = "W", down = "S", left = "A", right = "D" }
+right_stick = { up = "I", down = "K", left = "J", right = "L" }
+half_tilt   = ["Left Shift", "Right Shift"]   # held: the sticks go half way (walk, not run)
