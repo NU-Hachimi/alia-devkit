@@ -102,6 +102,14 @@ package = "libasound2t64"
 min = "1.2.14"
 since = "1.0"
 
+# The newest symbol version each family of the baseline's libraries provides: a program built
+# against a newer system needs more (GLIBC_2.43 on a rolling distribution) and won't load.
+[symbol_versions]
+GLIBC   = "2.41"     # libc, libm, libpthread, libdl, librt, ld-linux
+GLIBCXX = "3.4.33"   # libstdc++ (GCC 14)
+CXXABI  = "1.3.15"
+GCC     = "14.0.0"   # libgcc_s
+
 # Packages that make the libraries work without being linked: the GPU driver behind EGL/GLES,
 # and the ALSA plugin that sends "default" to PipeWire.
 [[runtime]]

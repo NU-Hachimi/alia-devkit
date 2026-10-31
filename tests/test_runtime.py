@@ -48,3 +48,11 @@ def test_keyboard_keys_are_unique():
     keys += [k for v in kb.values() if isinstance(v, dict) for k in v.values()]
     assert len(keys) == len(set(keys))
     assert set(kb["left_stick"]) == set(kb["right_stick"]) == {"up", "down", "left", "right"}
+
+
+def test_display_and_audio():
+    d, a = runtime.display(), runtime.audio()
+    assert d["transform"] in (0, 90, 180, 270)
+    assert sorted(d["size"]) == sorted(d["panel"])  # the same pixels, turned
+    assert a["min_quantum"] <= a["game_quantum"] <= a["default_quantum"]
+    assert runtime.env("x.y.z", 1)["PIPEWIRE_PROPS"] == '{ media.role = "%s" }' % a["role"]

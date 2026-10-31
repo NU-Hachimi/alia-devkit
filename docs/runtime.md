@@ -37,7 +37,9 @@
 
 - 一个全屏窗口（Wayland），由系统的合成器显示。用 SDL3 开窗口就行，建议直接全屏。
 - 图形接口：EGL + OpenGL ES（最高 3.1，Mesa freedreno，GPU 是 Adreno 702）。没有桌面 OpenGL 和 Vulkan 的保证。
-- 屏幕分辨率还没定（硬件未到），游戏要能适应窗口大小。开发板没有屏幕时，画面经 USB 在电脑上看。
+- 屏幕（`runtime.toml` 的 `[display]`，`alia.runtime.display()`；**还没实测**，屏幕没装上）：卡带拿到一个 **1280×720 的横向窗口**，正着画就行，竖装的面板（720×1280）由系统旋转。刷新率约 **66 Hz**，不是 60：帧节奏跟垂直同步走，不要按 60 Hz 写死。
+- 可选的优化：按面板的原生方向渲染，并把 `wl_surface.set_buffer_transform` 设成 `[display] transform`，合成器就能直接扫描输出，省掉一次旋转（显示控制器没有旋转单元）。
+- 游戏的内部分辨率（清单的 `[display] render`）是游戏自己的事；640×360 在屏幕上正好放大 2 倍。
 
 ## 3. 输入
 
@@ -95,8 +97,9 @@ alia_save_list(names, max); alia_save_rollback("slot1", 1); alia_save_delete("sl
 
 ## 6. 声音
 
-- 一个输出，**48 kHz 立体声**。用 SDL3 的音频（`SDL_OpenAudioDeviceStream`）或 ALSA 的 `default` 设备都可以；其他采样率会被重采样，最好直接用 48 kHz。
-- 延迟：默认缓冲约 21 ms（1024 帧），可以申请更小的（SDL 的 sample frames 提示），最小 32 帧。
+- 一个输出，**48 kHz 立体声**（`[audio]`，`alia.runtime.audio()`）。用 SDL3 的音频（`SDL_OpenAudioDeviceStream`）或 ALSA 的 `default` 设备都可以；其他采样率会被重采样，最好直接用 48 kHz。
+- 延迟：默认缓冲约 21 ms（1024 帧），可以申请更小的（SDL 的 sample frames 提示），最小 32 帧；游戏建议 512 帧（约 10.7 ms）。
+- 系统保证打开声音不会卡住：掌机上总有一个输出；电脑上的模拟器先试一下电脑的声音，不行就让卡带静音运行。
 - **系统音量**由系统管，游戏看不到也改不了；游戏只调自己内部的比例（音乐、音效）。
 - 系统的通知音响起时，游戏的声音会被平滑地压低，播完恢复；按键反馈音直接叠加。游戏不用处理。
 - 冻结时声音停止，恢复后接着放。

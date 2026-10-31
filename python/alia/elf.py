@@ -1,14 +1,15 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 NU Hachimi (Alia Pad cart SDK)
-"""Just enough ELF to check a cart's native files (acart check): the machine, and the
-dynamic section's NEEDED, RPATH and RUNPATH. 64-bit little-endian only, like the board."""
+"""Just enough ELF to check a cart's native files (acart check): the machine, the dynamic
+section's NEEDED, RPATH and RUNPATH, and the symbol versions it needs from each library
+(GLIBC_2.38 from libc.so.6). 64-bit little-endian only, like the board."""
 import struct
 from dataclasses import dataclass, field
 from pathlib import Path
 
-EM_AARCH64 = 183
+EM_AARCH64, EM_X86_64 = 183, 62
 MACHINES = {3: "x86 (32-bit)", 40: "ARM (32-bit)", 62: "x86-64", 183: "arm64"}
-SHT_DYNAMIC = 6
+SHT_DYNAMIC, SHT_GNU_VERNEED = 6, 0x6ffffffe
 DT_NEEDED, DT_RPATH, DT_RUNPATH = 1, 15, 29
 
 
@@ -21,6 +22,7 @@ class Elf:
     machine: int
     needed: list = field(default_factory=list)
     rpath: list = field(default_factory=list)  # RUNPATH, else RPATH, split on ':'
+    versions: dict = field(default_factory=dict)  # library -> the symbol versions it must provide
 
     @property
     def machine_name(self) -> str:
@@ -46,14 +48,29 @@ def read(path: Path) -> Elf:
     shentsize, shnum = struct.unpack_from("<HH", data, 58)
     sections = [struct.unpack_from("<IIQQQQIIQQ", data, shoff + i * shentsize) for i in range(shnum)]
     out = Elf(machine)
-    for _name, typ, _flags, _addr, off, size, link, _info, _align, entsize in sections:
-        if typ != SHT_DYNAMIC:
+    for _name, typ, _flags, _addr, off, size, link, info, _align, entsize in sections:
+        if typ not in (SHT_DYNAMIC, SHT_GNU_VERNEED):
             continue
         stroff = sections[link][4]
 
         def string(at):
             end = data.index(b"\0", stroff + at)
             return data[stroff + at:end].decode(errors="replace")
+
+        if typ == SHT_GNU_VERNEED:  # Elf64_Verneed entries, each with Elf64_Vernaux entries
+            at = off
+            for _ in range(info):
+                _ver, cnt, file, aux, nxt = struct.unpack_from("<HHIII", data, at)
+                names = out.versions.setdefault(string(file), set())
+                a = at + aux
+                for _ in range(cnt):
+                    _hash, _flags2, _other, name, anext = struct.unpack_from("<IHHII", data, a)
+                    names.add(string(name))
+                    a += anext
+                if not nxt:
+                    break
+                at += nxt
+            continue
 
         rpath = runpath = None
         for at in range(off, off + size, entsize or 16):

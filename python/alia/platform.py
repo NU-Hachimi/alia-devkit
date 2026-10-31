@@ -57,8 +57,25 @@ def _resolve(lib: str, f: Path, rpath: list[str], root: Path) -> bool:
     return False
 
 
-def check(cart) -> tuple[list[str], list[str]]:
-    """Problems (the cart won't run as built) and notes, for a loaded cart (alia.cart)."""
+# a PC build (acart check --pc, for the PC simulator) loads through x86-64's loader instead
+TARGETS = {"board": (elf.EM_AARCH64, {}),
+           "pc": (elf.EM_X86_64, {"ld-linux-x86-64.so.2": "ld-linux-aarch64.so.1"})}
+
+
+def _too_new(version: str) -> bool:
+    """GLIBC_2.43 when the baseline provides up to 2.41 (platform.toml [symbol_versions])."""
+    family, _, number = version.partition("_")
+    top = baseline().get("symbol_versions", {}).get(family)
+    if not top or not number[:1].isdigit():
+        return False
+    num = lambda v: tuple(int(x) for x in v.split(".") if x.isdigit())  # noqa: E731
+    return num(number) > num(top)
+
+
+def check(cart, target: str = "board") -> tuple[list[str], list[str]]:
+    """Problems (the cart won't run as built) and notes, for a loaded cart (alia.cart).
+    target: "board" (arm64, the handheld) or "pc" (x86-64, a PC build for the simulator)."""
+    machine, aliases = TARGETS[target]
     problems, notes = [], []
     want = cart.platform
     if not supports(want):
@@ -77,14 +94,21 @@ def check(cart) -> tuple[list[str], list[str]]:
         except (elf.ElfError, IndexError, ValueError) as err:
             problems.append(f"{rel}: unreadable ELF ({err})")
             continue
-        if e.machine != elf.EM_AARCH64:
-            problems.append(f"{rel}: built for {e.machine_name}; the board needs arm64")
+        if e.machine != machine:
+            problems.append(f"{rel}: built for {e.machine_name}; "
+                            + ("the board needs arm64" if target == "board" else "a PC build needs x86-64"))
             continue
         for entry in e.rpath:
             if "$ORIGIN" not in entry and "${ORIGIN}" not in entry:
                 notes.append(f"{rel}: RUNPATH {entry} points outside the cart (use $ORIGIN/...)")
         for lib in e.needed:
-            if lib in have or _resolve(lib, f, e.rpath, root):
+            if aliases.get(lib, lib) in have:
+                too_new = sorted(v for v in e.versions.get(lib, ()) if _too_new(v))
+                if too_new:
+                    problems.append(f"{rel}: needs {', '.join(too_new)} from {lib}, newer than the platform's "
+                                    "(built on a newer system: build on Debian 13, or the devkit's sysroot)")
+                continue
+            if _resolve(lib, f, e.rpath, root):
                 continue
             if lib in newer:
                 problems.append(f"{rel}: needs {lib}, which the platform has from {newer[lib]} on; "

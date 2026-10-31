@@ -93,3 +93,12 @@ def test_cart_platform_field(tmp_path):
     c = cart_with(tmp_path, {}, extra='platform = "2.0"')
     problems, _ = platform.check(c)
     assert problems and "baseline" in problems[0]
+
+
+def test_symbol_versions_newer_than_the_baseline():
+    assert platform._too_new("GLIBC_2.43")
+    assert not platform._too_new("GLIBC_2.38")
+    assert not platform._too_new("GLIBC_2.41")
+    assert platform._too_new("GLIBCXX_3.4.34")
+    assert not platform._too_new("GLIBC_PRIVATE")
+    assert not platform._too_new("SOMETHING_9.9")

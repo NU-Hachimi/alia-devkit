@@ -32,3 +32,14 @@ def keyboard() -> dict:
     """The PC keyboard layout ([keyboard]): button -> SDL3 key names, the two sticks as
     {up, down, left, right} -> key name, and half_tilt."""
     return rules()["keyboard"]
+
+
+def audio() -> dict:
+    """The cart's sound output ([audio]): rate, channels, quanta, role."""
+    return rules()["audio"]
+
+
+def display() -> dict:
+    """The handheld's screen ([display]): the window size a cart gets, the panel, its
+    transform and refresh rate; `verified` is false until the panel is measured."""
+    return rules()["display"]

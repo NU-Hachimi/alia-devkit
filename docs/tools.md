@@ -5,7 +5,8 @@
 ## 1. 不需要设备
 
 ```bash
-acart check DIR...                          # 校验卡带目录（清单、文件、原生依赖）
+acart check DIR...                          # 校验卡带目录（清单、文件、原生依赖、符号版本）
+acart check --pc DIR                        # 校验电脑版（x86-64，给 acart run 用）
 acart pack DIR [-o x.acart] [--key KEY] [--comp zstd|gzip]   # 打包，可选签名
 acart info x.acart                          # 读尾块：清单、哈希（重新计算）、签名
 acart keygen KEY                            # 生成签名密钥：KEY 和 KEY.pub

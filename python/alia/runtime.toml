@@ -47,9 +47,36 @@ suspend_grace_s  = 0.3    # pause = "game": SIGUSR1, then SIGSTOP after this
 game_suspend = "SIGUSR1"   # pause = "game": before the freeze (open your pause menu)
 game_resume  = "SIGUSR2"   # pause = "game": after SIGCONT (stay in it)
 
+# The cart's sound output (the devkit's docs/runtime.md §6). The system mixes; a cart plays
+# its own streams only, in the "game" role (PIPEWIRE_PROPS above), which system sounds duck.
+# The system guarantees a sink that never blocks an open: on the handheld the virtual
+# speaker is always there; the PC simulator checks the PC's sound first and goes silent if
+# it doesn't work.
 [audio]
-rate     = 48000
-channels = 2
+rate             = 48000   # other rates are resampled; ask for this one
+channels         = 2       # stereo, no surround
+default_quantum  = 1024    # frames per cycle when a stream doesn't ask (about 21 ms)
+min_quantum      = 32      # a stream may ask for less (node.latency, SDL's sample frames hint)
+game_quantum     = 512     # what a game should ask for (about 10.7 ms): low latency, safe on the A702
+realtime         = false   # the cart's threads get no realtime priority; PipeWire's mixer has it
+role             = "Game"
+
+# The handheld's screen: what a cart's picture ends up on (the devkit's docs/runtime.md §2).
+# NOT VERIFIED: the panel isn't fitted yet; these are its datasheet and the plan
+# (software plan §6.1). The compositor turns the portrait panel into a landscape output, so
+# a cart sees a landscape window of `size` and draws upright; nothing else is required.
+# Optional, for the last bit of performance: render in the panel's own orientation and set
+# wl_surface.set_buffer_transform to `transform`, and the compositor can scan the buffer out
+# directly instead of rotating it (the display controller has no rotation unit).
+[display]
+verified        = false
+size            = [1280, 720]   # the window a cart gets (landscape)
+panel           = [720, 1280]   # the panel, natively portrait
+transform       = 90            # degrees, how the panel is turned (90 or 270: to verify)
+refresh_hz      = 66.0          # about 66 Hz (70 MHz pixel clock), not 60: pace frames by vsync
+scale           = 1
+# a cart's render resolution ([display] render in cart.toml) is its own choice; 640x360 scales
+# by whole numbers to the screen (2x) and to a TV (1920x1080, 3x, planned)
 
 # The built-in gamepad, as the system creates it (alia-inputd, uinput). SDL's own guess
 # numbers the face buttons in evdev order and calls b2 (BTN_NORTH, the top one) "x", which

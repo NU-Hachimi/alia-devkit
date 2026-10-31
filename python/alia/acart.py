@@ -3,7 +3,8 @@
 """acart: carts from the command line (docs/cart.md). Talks to alia-session's
 pad.alia.Apps1, on this machine or, with --board, on the board over adb.
 
-  acart check DIR...             validate cart directories (no device needed)
+  acart check [--pc] DIR...      validate cart directories (no device needed); --pc: a PC
+                                 build for acart run (x86-64) instead of the board's (arm64)
   acart pack DIR [-o OUT] [--key KEY] [--comp zstd|gzip]   build an .acart
   acart run DIR [ARGS...] [--lang L] [--fresh] [--software]   run it on this PC as the
                                  handheld would (the alia-runtime image; Docker or Podman)
@@ -260,7 +261,7 @@ def cmd_check(a) -> int:
             print(f"✗ {e}")
             bad += 1
             continue
-        problems, notes = platform.check(c)
+        problems, notes = platform.check(c, "pc" if a.pc else "board")
         art = ", ".join(c.art) or "no art"
         shots = f", {len(c.screenshots)} screenshots" if c.screenshots else ""
         mark = "✗" if problems else "✓"
@@ -274,6 +275,11 @@ def cmd_check(a) -> int:
 
 
 RUNTIME_IMAGE = "ghcr.io/nu-hachimi/alia-runtime"
+
+
+def runtime_size():
+    from alia import runtime
+    return runtime.display()["size"]
 
 
 def cmd_run(a) -> int:
@@ -313,6 +319,12 @@ def cmd_run(a) -> int:
             lang = json.loads(state.read_text())["lang"]
         except (OSError, ValueError, KeyError):
             lang = "zh-CN" if os.environ.get("LANG", "").startswith("zh") else "en"
+    from alia import platform
+    import platform as host
+    target = "board" if host.machine() in ("aarch64", "arm64") else "pc"  # the image runs this machine's arch
+    problems, _ = platform.check(c, target)
+    for p in problems:
+        print(f"warning: {p}", file=sys.stderr)
     image = a.image or os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{c.platform}"
     cmd = [engine, "run", "--rm", "--init", "--security-opt", "label=disable",
            "--device", "/dev/uinput", "--device-cgroup-rule", "c 13:* rmw",
@@ -320,7 +332,7 @@ def cmd_run(a) -> int:
            "-v", f"{Path(a.dir).resolve()}:/cart:ro", "-v", f"{save}:/save", "-v", f"{cache}:/cache",
            "-v", f"{home}:/state",
            "-e", f"ALIA_RT_UID={os.getuid()}", "-e", f"ALIA_RT_GID={os.getgid()}",
-           "-e", f"ALIA_RT_LANG={lang}", "-e", f"ALIA_RT_SIZE={a.size}",
+           "-e", f"ALIA_RT_LANG={lang}", "-e", f"ALIA_RT_SIZE={a.size or 'x'.join(map(str, runtime_size()))}",
            "-e", f"ALIA_RT_ARGS={json.dumps(a.args)}", "-e", "ALIA_RT_STATE=/state/settings.json"]
     if os.path.isdir("/dev/dri") and not a.software:
         cmd += ["--device", "/dev/dri"]
@@ -342,7 +354,12 @@ def cmd_run(a) -> int:
         cmd += ["--network", "none"]
     cmd.append(image)
     print(f"{c.id} {c.version} in {image} (language {lang}, saves in {save})", file=sys.stderr)
-    return subprocess.run(cmd).returncode
+    proc = subprocess.Popen(cmd)
+    while True:
+        try:
+            return proc.wait()
+        except KeyboardInterrupt:  # Docker passes it on: the cart quits as on the handheld
+            continue
 
 
 def cmd_pack(a) -> int:
@@ -428,6 +445,7 @@ def main(argv=None) -> int:
     ap.add_argument("--bus", choices=["system", "session"], default=os.environ.get("ALIA_BUS", "session"))
     sub = ap.add_subparsers(dest="cmd", required=True)
     p = sub.add_parser("check")
+    p.add_argument("--pc", action="store_true", help="a PC build (x86-64, for acart run), not the board's")
     p.add_argument("dirs", nargs="+")
     p = sub.add_parser("list")
     p.add_argument("--json", action="store_true")
@@ -449,7 +467,7 @@ def main(argv=None) -> int:
     p.add_argument("--launch", action="store_true")
     p = sub.add_parser("run", help="run a cart directory on this PC as the handheld would")
     p.add_argument("--lang", help="the system language (zh-CN, en); default: as last time, or $LANG")
-    p.add_argument("--size", default="1280x720", help="the screen")
+    p.add_argument("--size", help="the screen (default: the handheld's, runtime.toml [display])")
     p.add_argument("--fresh", action="store_true", help="an empty save directory, thrown away after")
     p.add_argument("--software", action="store_true", help="software rendering (no GPU)")
     p.add_argument("--no-audio", action="store_true", help="no sound (when this PC's audio misbehaves)")
