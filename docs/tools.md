@@ -44,6 +44,15 @@ acart run DIR --browser          # 在浏览器里运行（没有 Wayland 桌面
 
 Home 短按：游戏被冻结（模拟回到主页），再按一次回到游戏，不是 `pause = "game"` 的卡带先看到"已暂停"。长按：快捷菜单（继续、语言、熄屏、退出）。
 
+### 在镜像里跑命令：`acart exec`
+
+```bash
+acart exec DIR -- pytest -q                      # 在模拟器镜像里跑测试
+acart exec --env PYTHONPATH=build/dev DIR -- python3 tools/make_shots.py
+```
+
+给测试和工具用，不是给卡带用：`DIR` 可读写地挂进去并作为工作目录，以当前用户运行（写出的文件归你），没有窗口、手柄、声音，也没有沙箱和网络限制。镜像里有 `pytest` 和 `pyflakes`（单独的环境，卡带看不到），Python 是和掌机一样的 3.13。不需要 `/dev/uinput`，所以 Windows、macOS 上也能用。
+
 ## 3. 设备（经 USB 的 adb）
 
 加 `--board`：`acart` 经 adb 在设备上运行设备自己的 `acart`。

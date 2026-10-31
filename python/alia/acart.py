@@ -9,6 +9,8 @@ pad.alia.Apps1, on this machine or, with --board, on the board over adb.
   acart run DIR [ARGS...] [--lang L] [--fresh] [--software] [--browser]   run it on this
                                  PC as the handheld would (the alia-runtime image; Docker or
                                  Podman): a window on a Wayland desktop, else a browser page
+  acart exec DIR [--env K=V] -- COMMAND...   run a command in the runtime image, headless
+                                 (tests and tools: pytest is there); DIR read-write, the cwd
   acart info FILE                read an .acart's trailer: manifest, hash, signature
   acart keygen PATH              new ed25519 signing key (PATH, PATH.pub)
   acart install FILE             install an .acart (with --board: copied over adb first)
@@ -442,6 +444,48 @@ def cmd_run(a) -> int:
     return code
 
 
+def cmd_exec(a) -> int:
+    """Run any command in the alia-runtime image, headless: tests and tools (`alia test`),
+    not carts. The directory is mounted read-write as the working directory; the command
+    runs as this user; no window, gamepad, sound, sandbox or network rules. pytest and
+    pyflakes are on PATH (their own environment, which carts never see)."""
+    import glob
+    import shutil
+    engine = os.environ.get("ALIA_RT_ENGINE") or shutil.which("docker") or shutil.which("podman")
+    if not engine:
+        print("✗ acart exec needs Docker or Podman", file=sys.stderr)
+        return 1
+    if not a.command:
+        print("✗ acart exec DIR -- COMMAND...", file=sys.stderr)
+        return 2
+    from alia import platform
+    work = Path(a.dir).resolve()
+    uid, gid = (os.getuid(), os.getgid()) if hasattr(os, "getuid") else (1000, 1000)
+    image = a.image or os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{platform.version()}"
+    cmd = [engine, "run", "--rm", "--init", "--security-opt", "label=disable", "--entrypoint", "",
+           "--user", f"{uid}:{gid}", "-v", f"{work}:/work", "-w", "/work",
+           "-e", "HOME=/tmp", "-e", "PATH=/opt/alia-tools/bin:/usr/local/bin:/usr/bin:/bin",
+           "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "XDG_CACHE_HOME=/tmp/.cache"]
+    if os.path.isdir("/dev/dri"):
+        cmd += ["--device", "/dev/dri"]
+        gids = sorted({os.stat(p).st_gid for p in glob.glob("/dev/dri/*")})
+        for g in gids:
+            cmd += ["--group-add", str(g)]
+    else:
+        cmd += ["-e", "LIBGL_ALWAYS_SOFTWARE=1"]
+    for kv in a.env or []:
+        cmd += ["-e", kv]
+    if sys.stdin.isatty() and sys.stdout.isatty():
+        cmd += ["-it"]
+    cmd += [image, *a.command]
+    proc = subprocess.Popen(cmd)
+    while True:
+        try:
+            return proc.wait()
+        except KeyboardInterrupt:  # Docker passes it on
+            continue
+
+
 def cmd_pack(a) -> int:
     from alia import acart_file as af
     from alia import cart as cartlib
@@ -569,6 +613,11 @@ def main(argv=None) -> int:
     p.add_argument("--image", help=f"the runtime image (default {RUNTIME_IMAGE}:<the cart's platform>)")
     p.add_argument("dir")
     p.add_argument("args", nargs=argparse.REMAINDER)
+    p = sub.add_parser("exec", help="run a command in the runtime image, headless (tests, tools)")
+    p.add_argument("--image", help=f"the runtime image (default {RUNTIME_IMAGE}:<the platform baseline>)")
+    p.add_argument("--env", action="append", metavar="K=V", help="an environment variable for the command")
+    p.add_argument("dir", help="mounted read-write as the working directory")
+    p.add_argument("command", nargs=argparse.REMAINDER, help="-- COMMAND...")
     p = sub.add_parser("pack")
     p.add_argument("dir")
     p.add_argument("-o", "--output")
@@ -588,7 +637,9 @@ def main(argv=None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     a = ap.parse_args(raw)
 
-    if a.cmd in ("check", "pack", "info", "keygen", "run"):
+    if a.cmd == "exec" and a.command[:1] == ["--"]:
+        a.command = a.command[1:]
+    if a.cmd in ("check", "pack", "info", "keygen", "run", "exec"):
         return globals()[f"cmd_{a.cmd}"](a)
     if a.cmd == "install" and a.board:
         return board_install(a)
