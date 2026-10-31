@@ -36,7 +36,7 @@ acart run examples/hello-python                      # 在电脑上按掌机的�
 | Linux（其他桌面） | ✓ 浏览器 |
 | Windows、macOS（Docker Desktop） | ✓ 浏览器（还在实机验证中） |
 
-不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.1/alia_sdk-0.2.1-py3-none-any.whl"`（这样没有示例卡带）。
+不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.2/alia_sdk-0.2.2-py3-none-any.whl"`（这样没有示例卡带）。
 
 项目放在 exFAT 盘（移动硬盘）上时，`git` 会报 "dubious ownership"：`git config --global --add safe.directory <目录>`。
 
