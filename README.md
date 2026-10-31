@@ -19,17 +19,34 @@ Alia Pad 的开发包：给 Alia Pad 掌机（基于 Arduino UNO Q）做游戏�
 
 ## 五分钟上手
 
-```bash
-pip install ./python                      # 得到 acart（打包要系统的 squashfs-tools）
-acart check examples/hello-python         # 检查清单和原生文件
-acart pack examples/hello-python          # -> com.example.hellopython-0.1.0.acart
+**需要**：Python 3.13（最低 3.12，和掌机一致的是 3.13），Docker（或 Podman），`git`。
 
-# 设备经 USB 连到电脑（adb），系统是开发版镜像（docs/flashing.md）
-acart --board install com.example.hellopython-0.1.0.acart
-acart --board launch com.example.hellopython
+```bash
+git clone https://github.com/NU-Hachimi/alia-devkit && cd alia-devkit
+python3 -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
+pip install python/                                  # 得到 acart
+acart run examples/hello-python                      # 在电脑上按掌机的规则运行
 ```
 
-一张卡带就是一个目录：`cart.toml` 加上 `content/` 里的游戏文件，打包成 `.acart`。卡带在沙箱里运行，能用的系统库是固定的一组（平台基线），其余自己带。从 `docs/cart.md` 读起。
+`acart run` 第一次会下载模拟器镜像（几百 MB）。Linux 的 Wayland 桌面上开一个窗口；其他系统用浏览器页面（自动打开）。键盘：方向键是十字键，`X`/`Z`/`C`/`V` 是 A/B/X/Y，`H` 是 Home（`docs/tools.md` §2）。
+
+| 系统 | 模拟器 |
+|---|---|
+| Linux（Wayland 桌面） | ✓ 窗口 |
+| Linux（其他桌面） | ✓ 浏览器 |
+| Windows、macOS（Docker Desktop） | **暂时不行**：Docker Desktop 的虚拟机没有 `/dev/uinput`，模拟器做不出卡带的手柄，在解决 |
+
+不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.0/alia_sdk-0.2.0-py3-none-any.whl"`（这样没有示例卡带）。
+
+**到真机上**（设备经 USB 连到电脑，系统是开发版镜像，见 `docs/flashing.md`；打包要系统的 `squashfs-tools`，只在 Linux 上有）：
+
+```bash
+acart --board push examples/hello-python --launch    # 开发时：直接推目录，不用打包
+acart pack examples/hello-python                     # 正式：打成 .acart
+acart --board install com.example.hellopython-0.1.0.acart
+```
+
+一张卡带就是一个目录：`cart.toml` 加上 `content/` 里的游戏文件。卡带在沙箱里运行，能用的系统库是固定的一组（平台基线），其余自己带。从 `docs/cart.md` 读起。
 
 ## 许可
 

@@ -1,6 +1,6 @@
 # 工具：`acart`
 
-`pip install ./python` 安装（Python ≥ 3.11）。打包要系统的 `mksquashfs`（`squashfs-tools`）；签名要 `pip install './python[sign]'`。和设备打交道要 `adb`。
+`pip install python/` 安装（Python 3.13，最低 3.12）。只有打包（`acart pack`）要系统的 `mksquashfs`（`squashfs-tools`，Linux 上有；`acart run` 和 `acart check` 不需要）；签名要 `pip install 'python/[sign]'`。和设备打交道要 `adb`。
 
 ## 1. 不需要设备
 
@@ -23,7 +23,9 @@ acart run DIR --no-audio         # 不出声（电脑的声音有问题时）
 acart run DIR --browser          # 在浏览器里运行（没有 Wayland 桌面时自动用）
 ```
 
-需要 Docker（或 Podman）。在 Linux 的 Wayland 桌面上，卡带开在一个窗口里；在 **macOS、Windows**（Docker Desktop）或者没有 Wayland 的桌面上，自动改用**浏览器模式**：画面、声音和手柄都在浏览器的一个页面里（`http://localhost:7300`，会自动打开），第一次要点一下页面才有声音。也可以用 `--browser` 指定，`--port` 换端口，`--no-open` 不自动打开浏览器。浏览器模式在 macOS 和 Windows 上还没实测过，遇到问题请反馈。卡带在 alia-runtime 镜像里运行：Debian 13，只有平台基线里的库，环境变量、挂起和退出的规则都和掌机一样（`python/alia/runtime.toml`）。卡带目录直接挂进去，改完重新运行就行，不用推送。存档在 `~/.local/share/alia-runtime/saves/<id>`。
+需要 Docker（或 Podman）。在 Linux 的 Wayland 桌面上，卡带开在一个窗口里；没有 Wayland 的桌面上自动改用**浏览器模式**：画面、声音和手柄都在浏览器的一个页面里（`http://localhost:7300`，页面就绪后自动打开），第一次要点一下页面才有声音。也可以用 `--browser` 指定，`--port` 换端口，`--no-open` 不自动打开浏览器。
+
+**Windows、macOS 暂时不能用**：Docker Desktop 的虚拟机里没有 `/dev/uinput`，模拟器做不出卡带的手柄（`acart run` 会这样提示）。正在解决。卡带在 alia-runtime 镜像里运行：Debian 13，只有平台基线里的库，环境变量、挂起和退出的规则都和掌机一样（`python/alia/runtime.toml`）。卡带目录直接挂进去，改完重新运行就行，不用推送。存档在 `~/.local/share/alia-runtime/saves/<id>`（Windows：`%LOCALAPPDATA%\alia-runtime\saves\<id>`；macOS：`~/Library/Application Support/alia-runtime/saves/<id>`）。
 
 - 原生卡带：在 x86_64 的电脑上要放一份 x86_64 的程序（在 Debian 13 或更旧的 glibc 上编译）。
 - 游戏收不到键盘，和掌机一样只有手柄：键盘和电脑上的手柄都变成一个 Alia Pad 手柄（按位置：Xbox 手柄下面的键是 Alia Pad 的 B）。

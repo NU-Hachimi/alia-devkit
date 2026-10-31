@@ -278,6 +278,46 @@ def cmd_check(a) -> int:
 RUNTIME_IMAGE = "ghcr.io/nu-hachimi/alia-runtime"
 
 
+def runtime_dirs() -> tuple[Path, Path]:
+    """Where acart run keeps saves and settings, and caches: the platform's own places."""
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData/Local")) / "alia-runtime"
+        return base, base / "cache"
+    if sys.platform == "darwin":
+        return (Path.home() / "Library/Application Support/alia-runtime",
+                Path.home() / "Library/Caches/alia-runtime")
+    return (Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "alia-runtime",
+            Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "alia-runtime")
+
+
+# Docker's own errors (before the cart starts) -> what they mean here
+DOCKER_HINTS = [
+    ('custom device "/dev/uinput"',
+     "this Docker's virtual machine has no /dev/uinput (Docker Desktop on Windows and macOS), and the "
+     "simulator makes the cart's gamepad with it: not supported there yet (the devkit's docs/tools.md)"),
+    ("Cannot connect to the Docker daemon", "Docker isn't running: start Docker Desktop (or the docker service)"),
+    ("failed to connect to the docker API", "Docker isn't running: start Docker Desktop (or the docker service)"),
+    ("port is already allocated", "the page's port is taken (another acart run?): pick one with --port"),
+    ("address already in use", "the page's port is taken (another acart run?): pick one with --port"),
+]
+
+
+def _page_up(url: str, proc, timeout: float) -> bool:
+    """Wait for the simulator's page to answer (the first run pulls the image first)."""
+    import time
+    import urllib.request
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline and proc.poll() is None:
+        try:
+            with urllib.request.urlopen(url, timeout=2) as r:
+                if r.status == 200:
+                    return True
+        except OSError:
+            pass
+        time.sleep(0.5)
+    return False
+
+
 def runtime_size():
     from alia import runtime
     return runtime.display()["size"]
@@ -308,10 +348,10 @@ def cmd_run(a) -> int:
     if not browser and not os.path.exists("/dev/uinput"):
         print("✗ no /dev/uinput (modprobe uinput): the cart's gamepad is made with it", file=sys.stderr)
         return 1
-    home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "alia-runtime"
+    home, caches = runtime_dirs()
     state = home / "settings.json"
     save = Path(tempfile.mkdtemp(prefix="alia-save-")) if a.fresh else home / "saves" / c.id
-    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "alia-runtime" / c.id
+    cache = caches / c.id
     for d in (save, cache, home):
         d.mkdir(parents=True, exist_ok=True)
     lang = a.lang
@@ -365,19 +405,41 @@ def cmd_run(a) -> int:
         cmd += ["--network", "none"]
     cmd.append(image)
     print(f"{c.id} {c.version} in {image} (language {lang}, saves in {save})", file=sys.stderr)
-    proc = subprocess.Popen(cmd)
+    import threading
+    proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, errors="replace")
+    said = []
+
+    def relay():  # the container's messages as they come, and an explanation for Docker's own errors
+        for line in proc.stderr:
+            sys.stderr.write(line)
+            sys.stderr.flush()
+            for pattern, hint in DOCKER_HINTS:
+                if pattern in line and hint not in said:
+                    said.append(hint)
+    relayer = threading.Thread(target=relay, daemon=True)
+    relayer.start()
     if browser:
         url = f"http://localhost:{a.port}"
-        print(f"open {url} (the simulator's screen, sound and gamepads)", file=sys.stderr)
-        if not a.no_open:
-            import threading
-            import webbrowser
-            threading.Timer(3.0, webbrowser.open, args=(url,)).start()
+
+        def when_up():
+            if _page_up(f"http://127.0.0.1:{a.port}/", proc, 180):
+                print(f"open {url} (the simulator's screen, sound and gamepads)", file=sys.stderr)
+                if not a.no_open:
+                    import webbrowser
+                    webbrowser.open(url)
+        threading.Thread(target=when_up, daemon=True).start()
     while True:
         try:
-            return proc.wait()
+            code = proc.wait()
+            break
         except KeyboardInterrupt:  # Docker passes it on: the cart quits as on the handheld
             continue
+    relayer.join(timeout=2)
+    for hint in said:
+        print(f"✗ {hint}", file=sys.stderr)
+    if code in (125, 126, 127) and not said:  # docker run's own failures, not the cart's exit
+        print(f"✗ the simulator didn't start (docker exit {code}): see the message above", file=sys.stderr)
+    return code
 
 
 def cmd_pack(a) -> int:
@@ -458,6 +520,16 @@ def remote(args: list[str]) -> int:
 
 
 def main(argv=None) -> int:
+    # Output redirected on Windows gets the old code page (cp1252, GBK), which has no ✓ and
+    # crashed acart check: write UTF-8 there instead (a log file reads it), never fail on a sign
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            "✓✗".encode(stream.encoding or "ascii")
+        except (UnicodeEncodeError, LookupError):
+            try:
+                stream.reconfigure(encoding="utf-8", errors="replace")
+            except (AttributeError, ValueError):
+                pass
     ap = argparse.ArgumentParser(prog="acart", description=__doc__.split("\n\n")[0])
     ap.add_argument("--board", action="store_true", help="the board, over adb")
     ap.add_argument("--bus", choices=["system", "session"], default=os.environ.get("ALIA_BUS", "session"))
