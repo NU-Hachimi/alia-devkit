@@ -294,9 +294,6 @@ def runtime_dirs() -> tuple[Path, Path]:
 
 # Docker's own errors (before the cart starts) -> what they mean here
 DOCKER_HINTS = [
-    ('custom device "/dev/uinput"',
-     "this Docker's virtual machine has no /dev/uinput (Docker Desktop on Windows and macOS), and the "
-     "simulator makes the cart's gamepad with it: not supported there yet (the devkit's docs/tools.md)"),
     ("Cannot connect to the Docker daemon", "Docker isn't running: start Docker Desktop (or the docker service)"),
     ("failed to connect to the docker API", "Docker isn't running: start Docker Desktop (or the docker service)"),
     ("port is already allocated", "the page's port is taken (another acart run?): pick one with --port"),
@@ -347,9 +344,6 @@ def cmd_run(a) -> int:
     # a window on a Wayland desktop, or else the browser (macOS, Windows, X11): the picture,
     # sound and gamepads go through a page on this machine
     browser = a.browser or not (wl and os.path.exists(wl_sock))
-    if not browser and not os.path.exists("/dev/uinput"):
-        print("✗ no /dev/uinput (modprobe uinput): the cart's gamepad is made with it", file=sys.stderr)
-        return 1
     home, caches = runtime_dirs()
     state = home / "settings.json"
     save = Path(tempfile.mkdtemp(prefix="alia-save-")) if a.fresh else home / "saves" / c.id
@@ -371,12 +365,15 @@ def cmd_run(a) -> int:
     image = a.image or os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{c.platform}"
     uid, gid = (os.getuid(), os.getgid()) if hasattr(os, "getuid") else (1000, 1000)  # Windows: any
     cmd = [engine, "run", "--rm", "--init", "--security-opt", "label=disable",
-           "--device", "/dev/uinput", "--device-cgroup-rule", "c 13:* rmw",
            "-v", f"{Path(a.dir).resolve()}:/cart:ro", "-v", f"{save}:/save", "-v", f"{cache}:/cache",
            "-v", f"{home}:/state",
            "-e", f"ALIA_RT_UID={uid}", "-e", f"ALIA_RT_GID={gid}",
            "-e", f"ALIA_RT_LANG={lang}", "-e", f"ALIA_RT_SIZE={a.size or 'x'.join(map(str, runtime_size()))}",
            "-e", f"ALIA_RT_ARGS={json.dumps(a.args)}", "-e", "ALIA_RT_STATE=/state/settings.json"]
+    # the cart's gamepad: uinput where this machine has it; else (Docker Desktop on Windows and
+    # macOS) the image simulates the same gamepad in user space by itself
+    if os.path.exists("/dev/uinput"):
+        cmd += ["--device", "/dev/uinput", "--device-cgroup-rule", "c 13:* rmw"]
     if os.path.isdir("/dev/dri") and not a.software:
         cmd += ["--device", "/dev/dri"]
     if a.software:

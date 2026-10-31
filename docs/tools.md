@@ -25,7 +25,7 @@ acart run DIR --browser          # 在浏览器里运行（没有 Wayland 桌面
 
 需要 Docker（或 Podman）。在 Linux 的 Wayland 桌面上，卡带开在一个窗口里；没有 Wayland 的桌面上自动改用**浏览器模式**：画面、声音和手柄都在浏览器的一个页面里（`http://localhost:7300`，页面就绪后自动打开），第一次要点一下页面才有声音。也可以用 `--browser` 指定，`--port` 换端口，`--no-open` 不自动打开浏览器。
 
-**Windows、macOS 暂时不能用**：Docker Desktop 的虚拟机里没有 `/dev/uinput`，模拟器做不出卡带的手柄（`acart run` 会这样提示）。正在解决。卡带在 alia-runtime 镜像里运行：Debian 13，只有平台基线里的库，环境变量、挂起和退出的规则都和掌机一样（`python/alia/runtime.toml`）。卡带目录直接挂进去，改完重新运行就行，不用推送。存档在 `~/.local/share/alia-runtime/saves/<id>`（Windows：`%LOCALAPPDATA%\alia-runtime\saves\<id>`；macOS：`~/Library/Application Support/alia-runtime/saves/<id>`）。
+卡带的手柄：有 `/dev/uinput` 的电脑（Linux）用它；Docker Desktop（Windows、macOS）的虚拟机没有，模拟器就在用户空间模拟同一个手柄，游戏看到的完全一样。Windows、macOS 还在实机验证中。卡带在 alia-runtime 镜像里运行：Debian 13，只有平台基线里的库，环境变量、挂起和退出的规则都和掌机一样（`python/alia/runtime.toml`）。卡带目录直接挂进去，改完重新运行就行，不用推送。存档在 `~/.local/share/alia-runtime/saves/<id>`（Windows：`%LOCALAPPDATA%\alia-runtime\saves\<id>`；macOS：`~/Library/Application Support/alia-runtime/saves/<id>`）。
 
 - 原生卡带：在 x86_64 的电脑上要放一份 x86_64 的程序（在 Debian 13 或更旧的 glibc 上编译）。
 - 游戏收不到键盘，和掌机一样只有手柄：键盘和电脑上的手柄都变成一个 Alia Pad 手柄（按位置：Xbox 手柄下面的键是 Alia Pad 的 B）。

@@ -34,7 +34,7 @@ acart run examples/hello-python                      # 在电脑上按掌机的�
 |---|---|
 | Linux（Wayland 桌面） | ✓ 窗口 |
 | Linux（其他桌面） | ✓ 浏览器 |
-| Windows、macOS（Docker Desktop） | **暂时不行**：Docker Desktop 的虚拟机没有 `/dev/uinput`，模拟器做不出卡带的手柄，在解决 |
+| Windows、macOS（Docker Desktop） | ✓ 浏览器（还在实机验证中） |
 
 不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.0/alia_sdk-0.2.0-py3-none-any.whl"`（这样没有示例卡带）。
 
