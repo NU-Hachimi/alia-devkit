@@ -32,7 +32,15 @@ libSDL3.so.0  libasound.so.2
 
 `acart check` 扫描 `content/` 里所有 ELF 文件：必须是 arm64；每个依赖（NEEDED）要么在卡带要求的基线里，要么能沿这个文件的 RUNPATH 在卡带里找到。指向卡带外面的 RUNPATH 会提示。`acart pack` 遇到问题不打包。
 
-## 3. 版本
+## 3. Python 卡带
+
+- 设备上是 Debian 13 的 `python3`，**3.13**，属于基线 1.0：所有 1.x 的系统都保证是 3.13（Debian 13 整个生命周期都不换 Python 小版本，只出补丁版本）。清单里不用另写 Python 版本，`platform = "1.0"` 就包含了。
+- 只能用标准库和 `alia` SDK 包（`alia.save` 等，设备上已经装好）。其他纯 Python 的包放进 `content/`。
+- **在电脑上开发也用 3.13**，这样在电脑上能跑的代码到设备上也能跑：比 3.13 新的语法和标准库在设备上没有，`acart check` 也查不出来。
+- **扩展模块**（`.so`）建议按稳定 ABI（abi3，`Py_LIMITED_API`）编译，文件名是 `*.abi3.so`。只对 3.13 编译的（`*.cpython-313-aarch64-linux-gnu.so`）现在也能用，但设备换 Python 小版本时就失效了。
+- 以后系统换了 Python 小版本（下一个 Debian），基线升大版本（2.0），写 `platform = "1.0"` 的卡带不会被当成兼容的来启动。纯 Python 和 abi3 的卡带一般只需要改一下 `platform` 重新打包。
+
+## 4. 版本
 
 - 卡带在清单里写需要的基线：`[cart] platform = "1.0"`（不写就是 1.0）。
 - 系统的基线不够时（大版本不同，或小版本更旧），卡带不会启动。
