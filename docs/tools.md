@@ -1,6 +1,6 @@
 # 工具：`acart`
 
-`pip install python/` 安装（Python 3.13，最低 3.12）。只有打包（`acart pack`）要系统的 `mksquashfs`（`squashfs-tools`，Linux 上有；`acart run` 和 `acart check` 不需要）；签名要 `pip install 'python/[sign]'`。和设备打交道要 `adb`。
+`pip install python/` 安装（Python 3.13，最低 3.12）。打包（`acart pack`）用系统的 `mksquashfs`（`squashfs-tools`）；没有它（Windows、macOS）就自动在模拟器镜像里打包，要 Docker；签名要 `pip install 'python/[sign]'`。和设备打交道要 `adb`。
 
 ## 1. 不需要设备
 
