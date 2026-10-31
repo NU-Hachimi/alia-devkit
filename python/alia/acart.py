@@ -5,6 +5,8 @@ pad.alia.Apps1, on this machine or, with --board, on the board over adb.
 
   acart check DIR...             validate cart directories (no device needed)
   acart pack DIR [-o OUT] [--key KEY] [--comp zstd|gzip]   build an .acart
+  acart run DIR [ARGS...] [--lang L] [--fresh] [--software]   run it on this PC as the
+                                 handheld would (the alia-runtime image; Docker or Podman)
   acart info FILE                read an .acart's trailer: manifest, hash, signature
   acart keygen PATH              new ed25519 signing key (PATH, PATH.pub)
   acart install FILE             install an .acart (with --board: copied over adb first)
@@ -271,6 +273,78 @@ def cmd_check(a) -> int:
     return 1 if bad else 0
 
 
+RUNTIME_IMAGE = "ghcr.io/nu-hachimi/alia-runtime"
+
+
+def cmd_run(a) -> int:
+    """Run a cart directory on this PC the way the handheld runs it, in the alia-runtime
+    image (Docker or Podman): the same libraries, rules, gamepad and pause behaviour."""
+    import glob
+    import shutil
+    import tempfile
+    from alia import cart as cartlib
+    try:
+        c = cartlib.load(a.dir)
+    except cartlib.CartError as e:
+        print(f"✗ {e}", file=sys.stderr)
+        return 1
+    engine = os.environ.get("ALIA_RT_ENGINE") or shutil.which("docker") or shutil.which("podman")
+    if not engine:
+        print("✗ acart run needs Docker or Podman", file=sys.stderr)
+        return 1
+    xdg = os.environ.get("XDG_RUNTIME_DIR", "")
+    wl = os.environ.get("WAYLAND_DISPLAY", "")
+    wl_sock = wl if wl.startswith("/") else os.path.join(xdg, wl)
+    if not wl or not os.path.exists(wl_sock):
+        print("✗ acart run needs a Wayland session (WAYLAND_DISPLAY)", file=sys.stderr)
+        return 1
+    if not os.path.exists("/dev/uinput"):
+        print("✗ no /dev/uinput (modprobe uinput): the cart's gamepad is made with it", file=sys.stderr)
+        return 1
+    home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "alia-runtime"
+    state = home / "settings.json"
+    save = Path(tempfile.mkdtemp(prefix="alia-save-")) if a.fresh else home / "saves" / c.id
+    cache = Path(os.environ.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "alia-runtime" / c.id
+    for d in (save, cache, home):
+        d.mkdir(parents=True, exist_ok=True)
+    lang = a.lang
+    if not lang:
+        try:
+            lang = json.loads(state.read_text())["lang"]
+        except (OSError, ValueError, KeyError):
+            lang = "zh-CN" if os.environ.get("LANG", "").startswith("zh") else "en"
+    image = a.image or os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{c.platform}"
+    cmd = [engine, "run", "--rm", "--init", "--security-opt", "label=disable",
+           "--device", "/dev/uinput", "--device-cgroup-rule", "c 13:* rmw",
+           "-v", f"{wl_sock}:/run/host-wayland",
+           "-v", f"{Path(a.dir).resolve()}:/cart:ro", "-v", f"{save}:/save", "-v", f"{cache}:/cache",
+           "-v", f"{home}:/state",
+           "-e", f"ALIA_RT_UID={os.getuid()}", "-e", f"ALIA_RT_GID={os.getgid()}",
+           "-e", f"ALIA_RT_LANG={lang}", "-e", f"ALIA_RT_SIZE={a.size}",
+           "-e", f"ALIA_RT_ARGS={json.dumps(a.args)}", "-e", "ALIA_RT_STATE=/state/settings.json"]
+    if os.path.isdir("/dev/dri") and not a.software:
+        cmd += ["--device", "/dev/dri"]
+    if a.software:
+        cmd += ["-e", "LIBGL_ALWAYS_SOFTWARE=1"]
+    pw = os.path.join(xdg, "pipewire-0")
+    if a.no_audio:
+        cmd += ["-e", "ALIA_RT_NO_AUDIO=1"]
+    elif os.path.exists(pw):
+        cmd += ["-v", f"{pw}:/run/alia/pipewire-0"]
+    else:
+        print("note: no PipeWire here: the cart runs without sound", file=sys.stderr)
+    pads = sorted({os.path.realpath(p) for p in glob.glob("/dev/input/by-id/*-event-joystick")})
+    for i, p in enumerate(pads):
+        cmd += ["--device", f"{p}:/run/host-input/pad{i}:r"]
+    if pads:
+        cmd += ["-e", "ALIA_RT_PADS=" + ":".join(f"/run/host-input/pad{i}" for i in range(len(pads)))]
+    if not c.permissions.get("network"):
+        cmd += ["--network", "none"]
+    cmd.append(image)
+    print(f"{c.id} {c.version} in {image} (language {lang}, saves in {save})", file=sys.stderr)
+    return subprocess.run(cmd).returncode
+
+
 def cmd_pack(a) -> int:
     from alia import acart_file as af
     from alia import cart as cartlib
@@ -373,6 +447,15 @@ def main(argv=None) -> int:
     p = sub.add_parser("push")
     p.add_argument("dir")
     p.add_argument("--launch", action="store_true")
+    p = sub.add_parser("run", help="run a cart directory on this PC as the handheld would")
+    p.add_argument("--lang", help="the system language (zh-CN, en); default: as last time, or $LANG")
+    p.add_argument("--size", default="1280x720", help="the screen")
+    p.add_argument("--fresh", action="store_true", help="an empty save directory, thrown away after")
+    p.add_argument("--software", action="store_true", help="software rendering (no GPU)")
+    p.add_argument("--no-audio", action="store_true", help="no sound (when this PC's audio misbehaves)")
+    p.add_argument("--image", help=f"the runtime image (default {RUNTIME_IMAGE}:<the cart's platform>)")
+    p.add_argument("dir")
+    p.add_argument("args", nargs=argparse.REMAINDER)
     p = sub.add_parser("pack")
     p.add_argument("dir")
     p.add_argument("-o", "--output")
@@ -392,7 +475,7 @@ def main(argv=None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     a = ap.parse_args(raw)
 
-    if a.cmd in ("check", "pack", "info", "keygen"):
+    if a.cmd in ("check", "pack", "info", "keygen", "run"):
         return globals()[f"cmd_{a.cmd}"](a)
     if a.cmd == "install" and a.board:
         return board_install(a)
