@@ -1,5 +1,7 @@
 # 运行时：卡带运行在什么环境里
 
+这里的路径、环境变量、超时和手柄映射，机器可读的版本在 SDK 的 `python/alia/runtime.toml`（`from alia import runtime`）。掌机的启动器和电脑上的模拟器 alia-runtime 都按它运行卡带。
+
 ## 1. 沙箱
 
 每张卡带都在沙箱（bubblewrap）里运行，环境变量从零开始，不继承系统的。卡带能看到的只有：

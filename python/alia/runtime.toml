@@ -1,0 +1,65 @@
+# Alia Pad cart runtime: how a cart is run (the devkit's docs/runtime.md). The one source:
+# the system's launcher (alia-session) and the PC simulator (alia-runtime) both read it, so
+# a cart meets the same rules on the PC as on the handheld.
+#
+# version: bumped when a rule changes in a way a cart could notice. Adding a key is not a
+# change; readers ignore keys they don't know.
+version = 1
+
+[paths]           # what the cart sees
+cart  = "/cart"   # its files, read-only; the game in /cart/content (the working directory)
+save  = "/save"   # its saves, read-write, with the manifest's quota
+cache = "/cache"  # its cache, read-write, may be cleared
+run   = "/run/alia"            # XDG_RUNTIME_DIR: the Wayland and PipeWire sockets only
+sdk   = "/opt/alia/python"     # the alia package, when not installed under /usr
+
+# The environment, rebuilt from scratch. {cart.id}, {cart.quota_kb} and {lang} are filled in;
+# a variable whose value comes out empty is left out (ALIA_LANG without a system language).
+[env]
+PATH                    = "/usr/local/bin:/usr/bin:/bin"
+HOME                    = "/tmp"
+XDG_RUNTIME_DIR         = "/run/alia"
+XDG_CACHE_HOME          = "/cache"
+ALIA_CART_ID            = "{cart.id}"
+ALIA_CART_DIR           = "/cart"
+ALIA_SAVE_DIR           = "/save"
+ALIA_SAVE_QUOTA_KB      = "{cart.quota_kb}"
+ALIA_LANG               = "{lang}"          # BCP 47: zh-CN, en
+PYTHONDONTWRITEBYTECODE = "1"
+PYTHONUNBUFFERED        = "1"               # the log is a file: keep the last lines when killed
+# every stream of the cart plays in the "game" role, which system sounds duck
+PIPEWIRE_PROPS          = '{ media.role = "Game" }'
+# udev's hotplug events travel over netlink, which the sandbox's own network namespace never
+# receives: SDL watches /dev/input with inotify instead
+SDL_JOYSTICK_DISABLE_UDEV = "1"
+# no keyboard, so the window never gets keyboard focus, and SDL drops gamepad events for
+# unfocused windows by default; which app gets the gamepad is the system's call
+SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS = "1"
+SDL_GAMECONTROLLERCONFIG = "{gamepad.mapping}"
+# with a display (always on the handheld): WAYLAND_DISPLAY = "wayland-0", SDL_VIDEODRIVER = "wayland"
+
+[timing]
+window_timeout_s = 10.0   # a cart without a window (tools, tests) counts as running after this
+term_grace_s     = 3.0    # quit: SIGTERM, then SIGKILL after this
+suspend_grace_s  = 0.3    # pause = "game": SIGUSR1, then SIGSTOP after this
+
+[pause]           # Home, screen off, the quick menu: the cart is frozen (SIGSTOP / SIGCONT)
+game_suspend = "SIGUSR1"   # pause = "game": before the freeze (open your pause menu)
+game_resume  = "SIGUSR2"   # pause = "game": after SIGCONT (stay in it)
+
+[audio]
+rate     = 48000
+channels = 2
+
+# The built-in gamepad, as the system creates it (alia-inputd, uinput). SDL's own guess
+# numbers the face buttons in evdev order and calls b2 (BTN_NORTH, the top one) "x", which
+# is west: the mapping puts x on b3 (BTN_WEST) and y on b2 (BTN_NORTH); a and b by position.
+[gamepad]
+name    = "Alia Pad Gamepad"
+bustype = 0x06            # BUS_VIRTUAL
+vendor  = 0x1209          # pid.codes test VID/PID until we register one
+product = 0x0001
+version = 1
+mapping = "060099ca091200000100000001000000,Alia Pad Gamepad,a:b0,b:b1,x:b3,y:b2,back:b8,start:b9,leftstick:b10,rightstick:b11,leftshoulder:b4,rightshoulder:b5,dpup:b12,dpdown:b13,dpleft:b14,dpright:b15,leftx:a0,lefty:a1,rightx:a2,righty:a3,lefttrigger:b6,righttrigger:b7,"
+# players: the built-in gamepad is always player 1; external ones (Bluetooth, the dock)
+# follow in the order they connect (planned: alia-inputd owns them all)

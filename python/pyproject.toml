@@ -25,4 +25,4 @@ Homepage = "https://github.com/NU-Hachimi/alia-devkit"
 packages = ["alia"]
 
 [tool.setuptools.package-data]
-alia = ["platform.toml"]
+alia = ["platform.toml", "runtime.toml"]
