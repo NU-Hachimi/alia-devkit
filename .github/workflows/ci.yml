@@ -14,7 +14,9 @@ jobs:
       - run: sudo apt-get update -q && sudo apt-get install -y -q squashfs-tools squashfuse
       - run: pip install pytest './python[sign]'
       - run: pytest -q tests
-      - name: the Python example
+      - name: the Python example (packing with the runner's own mksquashfs: ALIA_PACK_HERE)
+        env:
+          ALIA_PACK_HERE: "1"
         run: |
           acart check examples/hello-python
           acart pack examples/hello-python -o hello-python.acart

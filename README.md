@@ -38,7 +38,7 @@ acart run examples/hello-python                      # 在电脑上按掌机的�
 
 不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.0/alia_sdk-0.2.0-py3-none-any.whl"`（这样没有示例卡带）。
 
-**到真机上**（设备经 USB 连到电脑，系统是开发版镜像，见 `docs/flashing.md`；打包用系统的 `squashfs-tools`，没有就自动在模拟器镜像里打包）：
+**到真机上**（设备经 USB 连到电脑，系统是开发版镜像，见 `docs/flashing.md`；打包也在模拟器镜像里做）：
 
 ```bash
 acart --board push examples/hello-python --launch    # 开发时：直接推目录，不用打包

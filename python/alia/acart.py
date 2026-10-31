@@ -496,9 +496,10 @@ def cmd_pack(a) -> int:
             print("✗ not packed: fix the above (acart check shows the same)", file=sys.stderr)
             return 1
         out = Path(a.output or f"{c.id}-{c.version}.acart")
-        try:
-            af.find_mksquashfs()
-        except af.AcartError:  # no squashfs-tools here (Windows, macOS): pack in the runtime image
+        # packing happens in the runtime image, on every system: one mksquashfs, the same .acart
+        # from the same cart everywhere. ALIA_PACK_HERE=1: we are that image (or a CI runner
+        # that tests packing with its own mksquashfs)
+        if not os.environ.get("ALIA_PACK_HERE"):
             return pack_in_image(a, out)
         t = af.pack(a.dir, out, key=a.key, comp=a.comp)
     except (af.AcartError, cartlib.CartError) as e:
@@ -511,27 +512,27 @@ def cmd_pack(a) -> int:
 
 def pack_in_image(a, out: Path) -> int:
     """acart pack inside the alia-runtime image, which has mksquashfs (and, for --key, the
-    signing library): the cart read-only, the output's directory writable, run as this user."""
+    signing library): the cart read-only, the output's directory writable, run as this user,
+    no network."""
     import shutil
     from alia import platform
     engine = os.environ.get("ALIA_RT_ENGINE") or shutil.which("docker") or shutil.which("podman")
     if not engine:
-        print("✗ packing needs mksquashfs (squashfs-tools), or Docker to pack in the runtime image",
-              file=sys.stderr)
+        print("✗ acart pack needs Docker or Podman (it packs in the alia-runtime image)", file=sys.stderr)
         return 1
     out = out.resolve()
     out.parent.mkdir(parents=True, exist_ok=True)
     uid, gid = (os.getuid(), os.getgid()) if hasattr(os, "getuid") else (1000, 1000)
     image = os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{platform.version()}"
     cmd = [engine, "run", "--rm", "--security-opt", "label=disable", "--entrypoint", "",
-           "--user", f"{uid}:{gid}", "--network", "none", "-e", "HOME=/tmp",
+           "--user", f"{uid}:{gid}", "--network", "none", "-e", "HOME=/tmp", "-e", "ALIA_PACK_HERE=1",
            "-v", f"{Path(a.dir).resolve()}:/cart:ro", "-v", f"{out.parent}:/out"]
     inner = ["/opt/alia-tools/bin/python", "-m", "alia.acart", "pack", "/cart", "-o", f"/out/{out.name}",
              "--comp", a.comp]
     if a.key:
         cmd += ["-v", f"{Path(a.key).resolve()}:/key:ro"]
         inner += ["--key", "/key"]
-    print(f"(no mksquashfs here: packing in {image})", file=sys.stderr)
+    print(f"(packing in {image})", file=sys.stderr)
     code = subprocess.run(cmd + [image] + inner).returncode
     if code == 0:
         print(f"-> {out}")  # the line above names it as the image sees it (/out/...)
