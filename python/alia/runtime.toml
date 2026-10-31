@@ -36,6 +36,10 @@ SDL_JOYSTICK_DISABLE_UDEV = "1"
 # unfocused windows by default; which app gets the gamepad is the system's call
 SDL_JOYSTICK_ALLOW_BACKGROUND_EVENTS = "1"
 SDL_GAMECONTROLLERCONFIG = "{gamepad.mapping}"
+# SDL minimizes a fullscreen window when it loses keyboard focus, by default: the system's
+# overlays (the Shell's, the simulator's keyboard surface) move the focus, and the game's
+# window must stay where it is
+SDL_VIDEO_MINIMIZE_ON_FOCUS_LOSS = "0"
 # with a display (always on the handheld): WAYLAND_DISPLAY = "wayland-0", SDL_VIDEODRIVER = "wayland"
 
 [timing]

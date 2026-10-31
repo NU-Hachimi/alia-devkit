@@ -339,6 +339,8 @@ def cmd_run(a) -> int:
     if a.software:
         cmd += ["-e", "LIBGL_ALWAYS_SOFTWARE=1"]
     pw = os.path.join(xdg, "pipewire-0")
+    if a.debug:
+        cmd += ["-e", "ALIA_RT_DEBUG=1"]
     if a.no_audio:
         cmd += ["-e", "ALIA_RT_NO_AUDIO=1"]
     elif os.path.exists(pw):
@@ -471,6 +473,7 @@ def main(argv=None) -> int:
     p.add_argument("--fresh", action="store_true", help="an empty save directory, thrown away after")
     p.add_argument("--software", action="store_true", help="software rendering (no GPU)")
     p.add_argument("--no-audio", action="store_true", help="no sound (when this PC's audio misbehaves)")
+    p.add_argument("--debug", action="store_true", help="print every key the simulator receives")
     p.add_argument("--image", help=f"the runtime image (default {RUNTIME_IMAGE}:<the cart's platform>)")
     p.add_argument("dir")
     p.add_argument("args", nargs=argparse.REMAINDER)
