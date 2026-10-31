@@ -23,7 +23,7 @@ Alia Pad 的开发包：给 Alia Pad 掌机（基于 Arduino UNO Q）做游戏�
 
 ```bash
 git clone https://github.com/NU-Hachimi/alia-devkit && cd alia-devkit
-python3 -m venv .venv && . .venv/bin/activate        # Windows: .venv\Scripts\activate
+python3 -m venv .venv && . .venv/bin/activate        # Windows: py -3.13 -m venv .venv; .venv\Scripts\activate
 pip install python/                                  # 得到 acart
 acart run examples/hello-python                      # 在电脑上按掌机的规则运行
 ```
@@ -36,7 +36,9 @@ acart run examples/hello-python                      # 在电脑上按掌机的�
 | Linux（其他桌面） | ✓ 浏览器 |
 | Windows、macOS（Docker Desktop） | ✓ 浏览器（还在实机验证中） |
 
-不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.0/alia_sdk-0.2.0-py3-none-any.whl"`（这样没有示例卡带）。
+不想 clone 也可以只装 SDK：`pip install "alia-sdk @ https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-v0.2.1/alia_sdk-0.2.1-py3-none-any.whl"`（这样没有示例卡带）。
+
+项目放在 exFAT 盘（移动硬盘）上时，`git` 会报 "dubious ownership"：`git config --global --add safe.directory <目录>`。
 
 **到真机上**（设备经 USB 连到电脑，系统是开发版镜像，见 `docs/flashing.md`；打包也在模拟器镜像里做）：
 

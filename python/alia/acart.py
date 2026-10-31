@@ -301,6 +301,31 @@ DOCKER_HINTS = [
 ]
 
 
+def fresh_image(engine: str, image: str):
+    """The registry's image, not an old copy of the same tag (:1.0 moves with each release):
+    pull it, at most once an hour; offline, the local copy does."""
+    if not image.startswith("ghcr.io/"):
+        return  # a local image (ALIA_RT_IMAGE, --image): nothing to pull
+    import time
+    stamp = runtime_dirs()[1] / ("pulled-" + image.replace("/", "_").replace(":", "_"))
+    try:
+        if time.time() - stamp.stat().st_mtime < 3600:
+            return
+    except OSError:
+        pass
+    print(f"(checking for a newer {image})", file=sys.stderr)
+    try:
+        ok = subprocess.run([engine, "pull", "-q", image], stdout=subprocess.DEVNULL, timeout=600).returncode == 0
+    except (OSError, subprocess.TimeoutExpired):
+        ok = False
+    if ok:
+        stamp.parent.mkdir(parents=True, exist_ok=True)
+        stamp.touch()
+    else:
+        print(f"note: couldn't reach the registry (offline?): using the local {image} if there is one",
+              file=sys.stderr)
+
+
 def _page_up(url: str, proc, timeout: float) -> bool:
     """Wait for the simulator's page to answer (the first run pulls the image first)."""
     import time
@@ -403,6 +428,7 @@ def cmd_run(a) -> int:
     if not c.permissions.get("network") and not browser:
         cmd += ["--network", "none"]
     cmd.append(image)
+    fresh_image(engine, image)
     print(f"{c.id} {c.version} in {image} (language {lang}, saves in {save})", file=sys.stderr)
     import threading
     proc = subprocess.Popen(cmd, stderr=subprocess.PIPE, text=True, errors="replace")
@@ -457,12 +483,17 @@ def cmd_exec(a) -> int:
         return 2
     from alia import platform
     work = Path(a.dir).resolve()
+    if not work.is_dir():  # Docker would make it, owned by root
+        print(f"✗ no directory {work}", file=sys.stderr)
+        return 2
     uid, gid = (os.getuid(), os.getgid()) if hasattr(os, "getuid") else (1000, 1000)
     image = a.image or os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{platform.version()}"
     cmd = [engine, "run", "--rm", "--init", "--security-opt", "label=disable", "--entrypoint", "",
            "--user", f"{uid}:{gid}", "-v", f"{work}:/work", "-w", "/work",
            "-e", "HOME=/tmp", "-e", "PATH=/opt/alia-tools/bin:/usr/local/bin:/usr/bin:/bin",
-           "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "XDG_CACHE_HOME=/tmp/.cache"]
+           "-e", "PYTHONDONTWRITEBYTECODE=1", "-e", "XDG_CACHE_HOME=/tmp/.cache",
+           # pytest's cache in the container, not the project (exFAT drives refused it)
+           "-e", "PYTEST_ADDOPTS=-o cache_dir=/tmp/.pytest_cache"]
     if os.path.isdir("/dev/dri"):
         cmd += ["--device", "/dev/dri"]
         gids = sorted({os.stat(p).st_gid for p in glob.glob("/dev/dri/*")})
@@ -474,6 +505,7 @@ def cmd_exec(a) -> int:
         cmd += ["-e", kv]
     if sys.stdin.isatty() and sys.stdout.isatty():
         cmd += ["-it"]
+    fresh_image(engine, image)
     cmd += [image, *a.command]
     proc = subprocess.Popen(cmd)
     while True:
@@ -532,6 +564,7 @@ def pack_in_image(a, out: Path) -> int:
     if a.key:
         cmd += ["-v", f"{Path(a.key).resolve()}:/key:ro"]
         inner += ["--key", "/key"]
+    fresh_image(engine, image)
     print(f"(packing in {image})", file=sys.stderr)
     code = subprocess.run(cmd + [image] + inner).returncode
     if code == 0:
@@ -668,8 +701,22 @@ def main(argv=None) -> int:
     raw = list(sys.argv[1:] if argv is None else argv)
     a = ap.parse_args(raw)
 
-    if a.cmd == "exec" and a.command[:1] == ["--"]:
-        a.command = a.command[1:]
+    if a.cmd == "exec":
+        # acart exec DIR --env K=V -- CMD works too: the options before "--" are acart's
+        cmd = a.command
+        if "--" in cmd:
+            head, cmd = cmd[:cmd.index("--")], cmd[cmd.index("--") + 1:]
+            while head:
+                opt = head.pop(0)
+                if opt in ("--env", "--image") and head:
+                    value = head.pop(0)
+                    if opt == "--env":
+                        a.env = (a.env or []) + [value]
+                    else:
+                        a.image = value
+                else:
+                    ap.error(f"exec: {opt!r} before '--' isn't an acart exec option")
+        a.command = cmd
     if a.cmd in ("check", "pack", "info", "keygen", "run", "exec"):
         return globals()[f"cmd_{a.cmd}"](a)
     if a.cmd == "install" and a.board:
