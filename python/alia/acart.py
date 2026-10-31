@@ -6,8 +6,9 @@ pad.alia.Apps1, on this machine or, with --board, on the board over adb.
   acart check [--pc] DIR...      validate cart directories (no device needed); --pc: a PC
                                  build for acart run (x86-64) instead of the board's (arm64)
   acart pack DIR [-o OUT] [--key KEY] [--comp zstd|gzip]   build an .acart
-  acart run DIR [ARGS...] [--lang L] [--fresh] [--software]   run it on this PC as the
-                                 handheld would (the alia-runtime image; Docker or Podman)
+  acart run DIR [ARGS...] [--lang L] [--fresh] [--software] [--browser]   run it on this
+                                 PC as the handheld would (the alia-runtime image; Docker or
+                                 Podman): a window on a Wayland desktop, else a browser page
   acart info FILE                read an .acart's trailer: manifest, hash, signature
   acart keygen PATH              new ed25519 signing key (PATH, PATH.pub)
   acart install FILE             install an .acart (with --board: copied over adb first)
@@ -301,10 +302,10 @@ def cmd_run(a) -> int:
     xdg = os.environ.get("XDG_RUNTIME_DIR", "")
     wl = os.environ.get("WAYLAND_DISPLAY", "")
     wl_sock = wl if wl.startswith("/") else os.path.join(xdg, wl)
-    if not wl or not os.path.exists(wl_sock):
-        print("✗ acart run needs a Wayland session (WAYLAND_DISPLAY)", file=sys.stderr)
-        return 1
-    if not os.path.exists("/dev/uinput"):
+    # a window on a Wayland desktop, or else the browser (macOS, Windows, X11): the picture,
+    # sound and gamepads go through a page on this machine
+    browser = a.browser or not (wl and os.path.exists(wl_sock))
+    if not browser and not os.path.exists("/dev/uinput"):
         print("✗ no /dev/uinput (modprobe uinput): the cart's gamepad is made with it", file=sys.stderr)
         return 1
     home = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local/share")) / "alia-runtime"
@@ -326,37 +327,52 @@ def cmd_run(a) -> int:
     for p in problems:
         print(f"warning: {p}", file=sys.stderr)
     image = a.image or os.environ.get("ALIA_RT_IMAGE") or f"{RUNTIME_IMAGE}:{c.platform}"
+    uid, gid = (os.getuid(), os.getgid()) if hasattr(os, "getuid") else (1000, 1000)  # Windows: any
     cmd = [engine, "run", "--rm", "--init", "--security-opt", "label=disable",
            "--device", "/dev/uinput", "--device-cgroup-rule", "c 13:* rmw",
-           "-v", f"{wl_sock}:/run/host-wayland",
            "-v", f"{Path(a.dir).resolve()}:/cart:ro", "-v", f"{save}:/save", "-v", f"{cache}:/cache",
            "-v", f"{home}:/state",
-           "-e", f"ALIA_RT_UID={os.getuid()}", "-e", f"ALIA_RT_GID={os.getgid()}",
+           "-e", f"ALIA_RT_UID={uid}", "-e", f"ALIA_RT_GID={gid}",
            "-e", f"ALIA_RT_LANG={lang}", "-e", f"ALIA_RT_SIZE={a.size or 'x'.join(map(str, runtime_size()))}",
            "-e", f"ALIA_RT_ARGS={json.dumps(a.args)}", "-e", "ALIA_RT_STATE=/state/settings.json"]
     if os.path.isdir("/dev/dri") and not a.software:
         cmd += ["--device", "/dev/dri"]
     if a.software:
         cmd += ["-e", "LIBGL_ALWAYS_SOFTWARE=1"]
+    if browser:  # the container's own PipeWire and a page on this machine only
+        cmd += ["-p", f"127.0.0.1:{a.port}:7300", "-e", "ALIA_RT_BROWSER=1", "-e", f"ALIA_RT_HOST_PORT={a.port}",
+                "--cap-add", "NET_ADMIN"]  # the supervisor closes the network for the cart (iptables)
+    else:
+        cmd += ["-v", f"{wl_sock}:/run/host-wayland"]
     pw = os.path.join(xdg, "pipewire-0")
     if a.debug:
         cmd += ["-e", "ALIA_RT_DEBUG=1"]
     if a.no_audio:
         cmd += ["-e", "ALIA_RT_NO_AUDIO=1"]
+    elif browser:
+        pass
     elif os.path.exists(pw):
         cmd += ["-v", f"{pw}:/run/alia/pipewire-0"]
     else:
         print("note: no PipeWire here: the cart runs without sound", file=sys.stderr)
-    pads = sorted({os.path.realpath(p) for p in glob.glob("/dev/input/by-id/*-event-joystick")})
+    # the PC's gamepads (in the browser mode the page reads them, any system)
+    pads = [] if browser else sorted({os.path.realpath(p) for p in glob.glob("/dev/input/by-id/*-event-joystick")})
     for i, p in enumerate(pads):
         cmd += ["--device", f"{p}:/run/host-input/pad{i}:r"]
     if pads:
         cmd += ["-e", "ALIA_RT_PADS=" + ":".join(f"/run/host-input/pad{i}" for i in range(len(pads)))]
-    if not c.permissions.get("network"):
+    if not c.permissions.get("network") and not browser:
         cmd += ["--network", "none"]
     cmd.append(image)
     print(f"{c.id} {c.version} in {image} (language {lang}, saves in {save})", file=sys.stderr)
     proc = subprocess.Popen(cmd)
+    if browser:
+        url = f"http://localhost:{a.port}"
+        print(f"open {url} (the simulator's screen, sound and gamepads)", file=sys.stderr)
+        if not a.no_open:
+            import threading
+            import webbrowser
+            threading.Timer(3.0, webbrowser.open, args=(url,)).start()
     while True:
         try:
             return proc.wait()
@@ -474,6 +490,10 @@ def main(argv=None) -> int:
     p.add_argument("--software", action="store_true", help="software rendering (no GPU)")
     p.add_argument("--no-audio", action="store_true", help="no sound (when this PC's audio misbehaves)")
     p.add_argument("--debug", action="store_true", help="print every key the simulator receives")
+    p.add_argument("--browser", action="store_true",
+                   help="screen, sound and gamepads in a browser page (the default without a Wayland desktop)")
+    p.add_argument("--port", type=int, default=7300, help="the browser page's port on this machine")
+    p.add_argument("--no-open", action="store_true", help="don't open the browser by itself")
     p.add_argument("--image", help=f"the runtime image (default {RUNTIME_IMAGE}:<the cart's platform>)")
     p.add_argument("dir")
     p.add_argument("args", nargs=argparse.REMAINDER)

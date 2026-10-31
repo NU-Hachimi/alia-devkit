@@ -20,9 +20,10 @@ acart run DIR --fresh            # 用一个空存档目录，用完丢掉
 acart run DIR --lang en          # 系统语言（zh-CN、en）；默认沿用上次，或者按 $LANG
 acart run DIR --software         # 软件渲染（没有能用的 GPU 时）
 acart run DIR --no-audio         # 不出声（电脑的声音有问题时）
+acart run DIR --browser          # 在浏览器里运行（没有 Wayland 桌面时自动用）
 ```
 
-需要 Linux 的 Wayland 桌面和 Docker（或 Podman）。卡带在 alia-runtime 镜像里运行：Debian 13，只有平台基线里的库，环境变量、挂起和退出的规则都和掌机一样（`python/alia/runtime.toml`）。卡带目录直接挂进去，改完重新运行就行，不用推送。存档在 `~/.local/share/alia-runtime/saves/<id>`。
+需要 Docker（或 Podman）。在 Linux 的 Wayland 桌面上，卡带开在一个窗口里；在 **macOS、Windows**（Docker Desktop）或者没有 Wayland 的桌面上，自动改用**浏览器模式**：画面、声音和手柄都在浏览器的一个页面里（`http://localhost:7300`，会自动打开），第一次要点一下页面才有声音。也可以用 `--browser` 指定，`--port` 换端口，`--no-open` 不自动打开浏览器。浏览器模式在 macOS 和 Windows 上还没实测过，遇到问题请反馈。卡带在 alia-runtime 镜像里运行：Debian 13，只有平台基线里的库，环境变量、挂起和退出的规则都和掌机一样（`python/alia/runtime.toml`）。卡带目录直接挂进去，改完重新运行就行，不用推送。存档在 `~/.local/share/alia-runtime/saves/<id>`。
 
 - 原生卡带：在 x86_64 的电脑上要放一份 x86_64 的程序（在 Debian 13 或更旧的 glibc 上编译）。
 - 游戏收不到键盘，和掌机一样只有手柄：键盘和电脑上的手柄都变成一个 Alia Pad 手柄（按位置：Xbox 手柄下面的键是 Alia Pad 的 B）。
