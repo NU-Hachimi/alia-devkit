@@ -1,0 +1,39 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  sdk:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - run: sudo apt-get update -q && sudo apt-get install -y -q squashfs-tools squashfuse
+      - run: pip install pytest './python[sign]'
+      - run: pytest -q tests
+      - name: the Python example
+        run: |
+          acart check examples/hello-python
+          acart pack examples/hello-python -o hello-python.acart
+          acart info hello-python.acart
+
+  native:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -q && sudo apt-get install -y -q clang lld cmake ninja-build libarchive-tools
+      - uses: actions/cache@v4
+        with:
+          path: sysroot/out/cache
+          key: sysroot-${{ hashFiles('sysroot/sysroot.lock') }}
+      - run: sysroot/fetch.sh
+      - name: the C example, cross-compiled
+        working-directory: examples/hello-c
+        run: |
+          cmake -B build -G Ninja -DCMAKE_TOOLCHAIN_FILE=../../sysroot/toolchain-aarch64.cmake
+          cmake --build build && cmake --install build
+          file cart/content/hello
+      - run: pip install ./python && acart check examples/hello-c/cart

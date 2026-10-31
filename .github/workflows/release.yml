@@ -1,0 +1,26 @@
+# A tag sdk-vX.Y.Z (matching python/pyproject.toml) publishes the alia-sdk wheel:
+#   pip install https://github.com/NU-Hachimi/alia-devkit/releases/download/sdk-vX.Y.Z/alia_sdk-X.Y.Z-py3-none-any.whl
+name: release
+on:
+  push:
+    tags: ["sdk-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  wheel:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: the tag matches the package version
+        run: |
+          v=$(python -c 'import tomllib; print(tomllib.load(open("python/pyproject.toml", "rb"))["project"]["version"])')
+          [ "${GITHUB_REF_NAME}" = "sdk-v$v" ] || { echo "tag ${GITHUB_REF_NAME} but version $v"; exit 1; }
+      - run: pip install build && python -m build --wheel --outdir dist python
+      - run: gh release create "$GITHUB_REF_NAME" dist/*.whl --title "alia-sdk ${GITHUB_REF_NAME#sdk-v}" --notes "pip install the wheel below (docs/tools.md)."
+        env:
+          GH_TOKEN: ${{ github.token }}

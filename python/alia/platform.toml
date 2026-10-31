@@ -1,0 +1,117 @@
+# Alia Pad platform baseline: what a cart may count on being there (docs/platform.md).
+# The one source: the system's alia-platform package takes its Depends from it,
+# `acart check` checks a cart's native files against it, and the launcher refuses a cart
+# whose `platform` is newer than this one.
+#
+# version: additions bump the minor version (1.0 -> 1.1, with `since` on the new entries);
+# taking anything away needs a new major version.
+version = "1.0"
+
+[python]
+version = "3.13"   # python3 and its standard library, plus the alia SDK package (alia.save, ...)
+
+# Shared libraries by soname. `package (>= min)` provides it; `min` is what Debian 13 itself
+# ships, so the baseline doesn't depend on backports (the board runs Mesa 26.1 from them).
+[[lib]]
+soname = "libc.so.6"
+package = "libc6"
+min = "2.41"
+since = "1.0"
+
+[[lib]]
+soname = "libm.so.6"
+package = "libc6"
+min = "2.41"
+since = "1.0"
+
+[[lib]]
+soname = "libpthread.so.0"
+package = "libc6"
+min = "2.41"
+since = "1.0"
+
+[[lib]]
+soname = "libdl.so.2"
+package = "libc6"
+min = "2.41"
+since = "1.0"
+
+[[lib]]
+soname = "librt.so.1"
+package = "libc6"
+min = "2.41"
+since = "1.0"
+
+[[lib]]
+soname = "ld-linux-aarch64.so.1"
+package = "libc6"
+min = "2.41"
+since = "1.0"
+
+[[lib]]
+soname = "libgcc_s.so.1"
+package = "libgcc-s1"
+min = "14.2"
+since = "1.0"
+
+[[lib]]
+soname = "libstdc++.so.6"
+package = "libstdc++6"
+min = "14.2"
+since = "1.0"
+
+[[lib]]
+soname = "libEGL.so.1"
+package = "libegl1"
+min = "1.7"
+since = "1.0"
+
+[[lib]]
+soname = "libGLESv2.so.2"     # GLES 2.0 to 3.1 (Mesa freedreno, Adreno 702)
+package = "libgles2"
+min = "1.7"
+since = "1.0"
+
+[[lib]]
+soname = "libgbm.so.1"
+package = "libgbm1"
+min = "25.0"
+since = "1.0"
+
+[[lib]]
+soname = "libwayland-client.so.0"
+package = "libwayland-client0"
+min = "1.23"
+since = "1.0"
+
+[[lib]]
+soname = "libwayland-egl.so.1"
+package = "libwayland-egl1"
+min = "1.23"
+since = "1.0"
+
+[[lib]]
+soname = "libSDL3.so.0"
+package = "libsdl3-0"
+min = "3.2.10"
+since = "1.0"
+
+[[lib]]
+soname = "libasound.so.2"     # ALSA "default" goes to PipeWire (pipewire-alsa)
+package = "libasound2t64"
+min = "1.2.14"
+since = "1.0"
+
+# Packages that make the libraries work without being linked: the GPU driver behind EGL/GLES,
+# and the ALSA plugin that sends "default" to PipeWire.
+[[runtime]]
+package = "libegl-mesa0"
+min = "25.0"
+
+[[runtime]]
+package = "mesa-libgallium"
+min = "25.0"
+
+[[runtime]]
+package = "pipewire-alsa"
+min = "1.4"

@@ -1,0 +1,6 @@
+/sysroot/out/
+build/
+/examples/hello-c/cart/content/
+*.acart
+__pycache__/
+*.egg-info/

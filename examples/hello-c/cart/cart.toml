@@ -1,0 +1,14 @@
+[cart]
+id          = "com.example.helloc"
+title       = "Hello C"
+version     = "0.1.0"
+publisher   = "Example"
+description = "The smallest native cart: SDL3 and a save, cross-compiled on a PC."
+
+[runtime]
+type  = "native"
+entry = "hello"         # content/hello, put there by `cmake --install`
+
+[locale.zh]
+title       = "你好 C"
+description = "最小的原生卡带：SDL3 和一个存档，在电脑上交叉编译。"

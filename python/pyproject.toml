@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "alia-sdk"
+version = "0.1.0"
+description = "Alia Pad cart SDK: manifests, saves, .acart files and the acart tool"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+sign = ["cryptography>=41"]     # acart keygen, pack --key, signature checks
+local = ["dbus-fast>=2"]        # acart without --board, against a session on this machine
+
+[project.scripts]
+acart = "alia.acart:main"
+
+[project.urls]
+Homepage = "https://github.com/NU-Hachimi/alia-devkit"
+
+[tool.setuptools]
+packages = ["alia"]
+
+[tool.setuptools.package-data]
+alia = ["platform.toml"]

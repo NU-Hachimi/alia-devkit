@@ -1,0 +1,14 @@
+[cart]
+id          = "com.example.hellopython"
+title       = "Hello Python"
+version     = "0.1.0"
+publisher   = "Example"
+description = "The smallest Python cart: a window, the gamepad, a save."
+
+[runtime]
+type  = "python"
+entry = "main.py"
+
+[locale.zh]
+title       = "你好 Python"
+description = "最小的 Python 卡带：一个窗口、手柄、一个存档。"

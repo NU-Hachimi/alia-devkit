@@ -1,0 +1,4 @@
+# What a native cart is compiled against: the headers and link files of the platform
+# baseline's libraries (python/alia/platform.toml), at the board's versions.
+libc6-dev linux-libc-dev libstdc++-14-dev libgcc-14-dev
+libsdl3-dev libegl-dev libgles-dev libgbm-dev libwayland-dev libasound2-dev
